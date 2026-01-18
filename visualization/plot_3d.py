@@ -111,9 +111,10 @@ class Plot3D:
         """Обновление 2D среза с изотермами"""
         axis = slice_params['axis']
         value = slice_params['value']
+        tolerance = slice_params['tolerance']
         
         # Создание 2D среза
-        slice_data = self._create_slice_data(data, axis, value)
+        slice_data = self._create_slice_data(data, axis, value, tolerance)
         
         if slice_data is not None and len(slice_data) > 0:
             # Определяем координаты для графика в зависимости от оси среза

@@ -20,6 +20,7 @@ class Graph3DApp:
         self.file_path = None
         self.data = None
         self.slice_value = tk.DoubleVar(value=0.0)
+        self.tolerance_value = tk.DoubleVar(value=0.1)
         self.slice_axis = tk.StringVar(value="z")
         self.show_isotherms = tk.BooleanVar(value=True)
         self.num_isotherms = tk.IntVar(value=10)
@@ -142,8 +143,20 @@ class Graph3DApp:
         
         self.slice_slider = tk.Scale(value_frame, from_=0, to=100, 
                                     orient=tk.HORIZONTAL, variable=self.slice_value,
-                                    command=self.on_slider_change, length=300)
+                                    command=self.on_slider_value_change, length=300)
         self.slice_slider.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+
+        # Поле ввода и ползунок для значения погрешности среза
+        tolerance_frame = tk.Frame(slice_frame)
+        tolerance_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Label(tolerance_frame, text="Значение погрешности:", font=("Arial", 9)).pack(side=tk.LEFT)
+        
+        self.tolerance_entry = tk.Entry(tolerance_frame, textvariable=self.tolerance_value, 
+                                   width=10, font=("Arial", 9))
+        self.tolerance_entry.pack(side=tk.LEFT, padx=5)
+        self.tolerance_entry.bind('<Return>', self.on_slice_entry_change)
+
 
         # Фрейм для настроек изотерм
         isotherm_frame = tk.LabelFrame(self.root, text="Настройки изотерм", font=("Arial", 10))
@@ -233,13 +246,20 @@ class Graph3DApp:
         try:
             value = float(self.slice_entry.get())
             self.slice_value.set(value)
+            tolerance = float(self.tolerance_entry.get())
+            self.tolerance_value.set(tolerance)
             self.show_slice_info()
             if self.data is not None and self.current_figure:
                 self.update_plot()
         except ValueError:
             messagebox.showerror("Ошибка", "Введите корректное числовое значение")
     
-    def on_slider_change(self, value):
+    def on_slider_value_change(self, value):
+        """Обработчик изменения ползунка"""
+        if self.data is not None and self.current_figure:
+            self.update_plot()
+
+    def on_slider_tolerance_change(self, value):
         """Обработчик изменения ползунка"""
         if self.data is not None and self.current_figure:
             self.update_plot()
@@ -349,13 +369,13 @@ class Graph3DApp:
                     self.info_text.insert(tk.END, f"{value:.3f}, ")
             
 
-    def get_slice_data(self, axis, value, tolerance=0.1):
+    def get_slice_data(self, axis, value):
         """Получение данных для среза по заданной оси и значению"""
         if self.data is None or self.data.empty:
             return None
         
         # Создаем маску для фильтрации точек в срезе
-        mask = np.abs(self.data[axis] - value) <= tolerance
+        mask = np.abs(self.data[axis] - value) <= self.tolerance_value.get()
         
         return self.data[mask].copy()
 
@@ -368,7 +388,8 @@ class Graph3DApp:
         try:
             slice_params = {
                 'axis': self.slice_axis.get(),
-                'value': self.slice_value.get()
+                'value': self.slice_value.get(),
+                'tolerance': self.tolerance_value.get()
             }
             
             self.current_figure = self.plot_3d.create_3d_plot_with_slice(
@@ -391,7 +412,8 @@ class Graph3DApp:
         try:
             slice_params = {
                 'axis': self.slice_axis.get(),
-                'value': self.slice_value.get()
+                'value': self.slice_value.get(),
+                'tolerance': self.tolerance_value.get()
             }
             
             self.plot_3d.update_3d_plot_with_slice(
