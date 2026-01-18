@@ -318,7 +318,7 @@ class Graph3DApp:
             axis = self.slice_axis.get()
             value = float(self.slice_value.get())
             self.info_text.insert(tk.END, "\n" + "="*50 + "\n")
-            self.info_text.insert(tk.END, f"\nИнформация по срезу. Ось: {axis.upper()}, значение: {value:.3f}\n")
+            self.info_text.insert(tk.END, f"Информация по срезу. Ось: {axis.upper()}, значение: {value:.3f}\n")
 
 
             slice_data = self.get_slice_data(axis, value)
@@ -340,8 +340,13 @@ class Graph3DApp:
             else:
                 self.info_text.insert(tk.END, "СРЕЗ НЕ СОДЕРЖИТ ДАННЫХ\n")
                 self.info_text.insert(tk.END, "="*50 + "\n")
-                self.info_text.insert(tk.END, "\nНет точек в выбранном срезе.\n")
+                self.info_text.insert(tk.END, "Нет точек в выбранном срезе.\n")
                 self.info_text.insert(tk.END, "Попробуйте изменить значение или ось.\n")
+
+                self.info_text.insert(tk.END, "\nВозможные точки среза на выбранной оси:.\n")
+                unique_values = sorted(self.data[axis].unique())
+                for value in unique_values:
+                    self.info_text.insert(tk.END, f"{value:.3f}, ")
             
 
     def get_slice_data(self, axis, value, tolerance=0.1):
@@ -350,12 +355,7 @@ class Graph3DApp:
             return None
         
         # Создаем маску для фильтрации точек в срезе
-        if axis == 'x':
-            mask = np.abs(self.data['x'] - value) <= tolerance
-        elif axis == 'y':
-            mask = np.abs(self.data['y'] - value) <= tolerance
-        else:  # axis == 'z'
-            mask = np.abs(self.data['z'] - value) <= tolerance
+        mask = np.abs(self.data[axis] - value) <= tolerance
         
         return self.data[mask].copy()
 
