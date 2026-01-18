@@ -5,6 +5,7 @@ from data.data_loader import DataLoader
 from data.data_processor import DataProcessor
 from visualization.plot_3d import Plot3D
 from utils.file_utils import FileUtils
+import pandas as pd
 
 class Graph3DApp:
     def __init__(self, root):
@@ -130,7 +131,7 @@ class Graph3DApp:
 
     def on_isotherm_settings_change(self):
         """Обработчик изменения настроек изотерм"""
-        if self.data and self.current_figure:
+        if self.data is not None and self.current_figure:
             self.update_plot()
 
     def on_isotherm_spin_change(self, event=None):
@@ -140,7 +141,7 @@ class Graph3DApp:
             value = int(self.isotherm_spin.get())
             if 3 <= value <= 50:  # Проверяем диапазон
                 self.num_isotherms.set(value)
-                if self.data and self.current_figure:
+                if self.data is not None and self.current_figure:
                     self.update_plot()
         except ValueError:
             # Игнорируем некорректный ввод
@@ -148,7 +149,7 @@ class Graph3DApp:
     
     def on_slice_change(self):
         """Обработчик изменения оси среза"""
-        if self.data:
+        if self.data is not None:
             self.update_slider_range()
             if self.current_figure:
                 self.update_plot()
@@ -158,31 +159,31 @@ class Graph3DApp:
         try:
             value = float(self.slice_entry.get())
             self.slice_value.set(value)
-            if self.data and self.current_figure:
+            if self.data is not None and self.current_figure:
                 self.update_plot()
         except ValueError:
             messagebox.showerror("Ошибка", "Введите корректное числовое значение")
     
     def on_slider_change(self, value):
         """Обработчик изменения ползунка"""
-        if self.data and self.current_figure:
+        if self.data is not None and self.current_figure:
             self.update_plot()
     
     def update_slider_range(self):
         """Обновление диапазона ползунка в зависимости от данных и выбранной оси"""
-        if not self.data:
+        if self.data is None:
             return
             
         axis = self.slice_axis.get()
-        if axis == 'x' and self.data['x']:
-            min_val = min(self.data['x'])
-            max_val = max(self.data['x'])
-        elif axis == 'y' and self.data['y']:
-            min_val = min(self.data['y'])
-            max_val = max(self.data['y'])
-        elif axis == 'z' and self.data['z']:
-            min_val = min(self.data['z'])
-            max_val = max(self.data['z'])
+        if axis == 'x':
+            min_val = self.data['x'].min()
+            max_val = self.data['x'].max()
+        elif axis == 'y':
+            min_val = self.data['y'].min()
+            max_val = self.data['y'].max()
+        elif axis == 'z':
+            min_val = self.data['z'].min()
+            max_val = self.data['z'].max()
         else:
             return
         
@@ -199,7 +200,7 @@ class Graph3DApp:
         
         if file_path:
             try:
-                self.data = self.data_loader.load_from_csv(file_path)
+                self.data = self.data_loader.load_data(file_path)
                 self.show_data_info()
                 self.update_slider_range()
                 self.status_var.set(f"Данные загружены из: {os.path.basename(file_path)}")
@@ -210,25 +211,26 @@ class Graph3DApp:
     
     def show_data_info(self):
         """Отображение информации о загруженных данных"""
-        if self.data:
+        if self.data is not None and not self.data.empty:
             self.info_text.delete(1.0, tk.END)
             self.info_text.insert(tk.END, "Загруженные данные:\n")
             self.info_text.insert(tk.END, "="*50 + "\n")
             
             # Показываем первые 10 точек
-            preview_data = self.data_processor.get_data_preview(self.data, 10)
-            for line in preview_data:
-                self.info_text.insert(tk.END, line + "\n")
+            preview_data = self.data.head(10)
+            self.info_text.insert(tk.END, preview_data.to_string() + "\n")
             
             # Добавляем статистику
-            stats = self.data_processor.calculate_statistics(self.data)
+            T_min = self.data['T'].min()
+            T_max = self.data['T'].max()
+            T_mean = self.data['T'].mean()
             self.info_text.insert(tk.END, f"\nВсего точек: {len(self.data['x'])}\n")
             self.info_text.insert(tk.END, 
-                f"Температура: мин={stats['min']:.3f}, макс={stats['max']:.3f}, средн={stats['avg']:.3f}\n")
+                f"Температура: мин={T_min:.3f}, макс={T_max:.3f}, средн={T_mean:.3f}\n")
     
     def plot_3d_graph(self):
         """Создание нового 3D графика со срезом"""
-        if not self.data or len(self.data['x']) == 0:
+        if self.data is None or len(self.data['x']) == 0:
             messagebox.showwarning("Предупреждение", "Сначала загрузите данные!")
             return
         
@@ -252,7 +254,7 @@ class Graph3DApp:
     
     def update_plot(self):
         """Обновление существующего графика"""
-        if not self.data or not self.current_figure:
+        if self.data is None or not self.current_figure:
             return
         
         try:

@@ -8,7 +8,8 @@ class Plot3D:
     def __init__(self):
         self.plot_utils = PlotUtils()
     
-    def create_3d_plot_with_slice(self, data, slice_params, show_isotherms=True, num_isotherms=10):
+    def create_3d_plot_with_slice(self, data: pd.DataFrame, slice_params: dict, 
+                                  show_isotherms=True, num_isotherms=10):
         """Создание нового 3D графика и среза в одном окне"""
         if not self.plot_utils.validate_data(data):
             raise ValueError("Некорректные данные для построения графика")
@@ -41,7 +42,8 @@ class Plot3D:
         
         return fig
     
-    def update_3d_plot_with_slice(self, fig, data, slice_params, show_isotherms=None, num_isotherms=None):
+    def update_3d_plot_with_slice(self, fig, data: pd.DataFrame, slice_params: dict, 
+                                  show_isotherms=None, num_isotherms=None):
         """Обновление существующего графика со срезом"""
         if not fig or not hasattr(fig, 'slices_axes'):
             return self.create_3d_plot_with_slice(data, slice_params, show_isotherms, num_isotherms)
@@ -69,9 +71,13 @@ class Plot3D:
         fig.canvas.draw()
         fig.canvas.flush_events()
     
-    def _update_3d_plot(self, ax, data, slice_params):
+    def _update_3d_plot(self, ax, data: pd.DataFrame, slice_params: dict):
         """Обновление 3D графика"""
-        x, y, z, T = data['x'], data['y'], data['z'], data['T']
+        # Используем pandas Series для доступа к данным
+        x = data['x'].values
+        y = data['y'].values
+        z = data['z'].values
+        T = data['T'].values
         
         # Расчет диапазона цветов
         color_range = self.plot_utils.calculate_color_range(T)
@@ -100,7 +106,8 @@ class Plot3D:
             # Обновляем существующую цветовую шкалу
             ax.colorbar.update_normal(scatter)
     
-    def _update_slice_plot(self, ax, data, slice_params, show_isotherms=True, num_isotherms=10):
+    def _update_slice_plot(self, ax, data: pd.DataFrame, slice_params: dict, 
+                          show_isotherms=True, num_isotherms=10):
         """Обновление 2D среза с изотермами"""
         axis = slice_params['axis']
         value = slice_params['value']
@@ -108,19 +115,22 @@ class Plot3D:
         # Создание 2D среза
         slice_data = self._create_slice_data(data, axis, value)
         
-        if slice_data and len(slice_data['T']) > 0:
+        if slice_data is not None and len(slice_data) > 0:
             # Определяем координаты для графика в зависимости от оси среза
             if axis == 'x':
-                x_coords, y_coords = slice_data['y'], slice_data['z']
+                x_coords = slice_data['y'].values
+                y_coords = slice_data['z'].values
                 x_label, y_label = 'Y Axis', 'Z Axis'
             elif axis == 'y':
-                x_coords, y_coords = slice_data['x'], slice_data['z']
+                x_coords = slice_data['x'].values
+                y_coords = slice_data['z'].values
                 x_label, y_label = 'X Axis', 'Z Axis'
             else:  # z
-                x_coords, y_coords = slice_data['x'], slice_data['y']
+                x_coords = slice_data['x'].values
+                y_coords = slice_data['y'].values
                 x_label, y_label = 'X Axis', 'Y Axis'
             
-            temperatures = slice_data['T']
+            temperatures = slice_data['T'].values
             
             # Создаем scatter plot точек
             sc = ax.scatter(x_coords, y_coords, c=temperatures, 
@@ -133,7 +143,7 @@ class Plot3D:
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
             ax.set_title(f'2D Срез по {axis.upper()} = {value:.3f}\n'
-                         f'Точек в срезе: {len(slice_data["T"])}')
+                         f'Точек в срезе: {len(slice_data)}')
             ax.grid(True, alpha=0.3)
             
             # Цветовая шкала для среза
@@ -202,11 +212,11 @@ class Plot3D:
         
         return Xi, Yi, Zi
     
-    def _add_slice_plane(self, ax, data, axis, value, alpha=0.2):
+    def _add_slice_plane(self, ax, data: pd.DataFrame, axis: str, value: float, alpha=0.2):
         """Добавление плоскости среза на 3D график"""
-        x_min, x_max = min(data['x']), max(data['x'])
-        y_min, y_max = min(data['y']), max(data['y'])
-        z_min, z_max = min(data['z']), max(data['z'])
+        x_min, x_max = data['x'].min(), data['x'].max()
+        y_min, y_max = data['y'].min(), data['y'].max()
+        z_min, z_max = data['z'].min(), data['z'].max()
         
         if axis == 'x':
             # Плоскость YZ при фиксированном X
@@ -224,20 +234,15 @@ class Plot3D:
             zz = np.full_like(xx, value)
             ax.plot_surface(xx, yy, zz, alpha=alpha, color='red')
     
-    def _create_slice_data(self, data, axis, value, tolerance=0.1):
+    def _create_slice_data(self, data: pd.DataFrame, axis: str, value: float, 
+                          tolerance=0.1) -> pd.DataFrame:
         """Создание данных для среза с заданной точностью"""
         if axis == 'x':
-            mask = np.abs(np.array(data['x']) - value) <= tolerance
+            mask = np.abs(data['x'] - value) <= tolerance
         elif axis == 'y':
-            mask = np.abs(np.array(data['y']) - value) <= tolerance
+            mask = np.abs(data['y'] - value) <= tolerance
         else:  # z
-            mask = np.abs(np.array(data['z']) - value) <= tolerance
+            mask = np.abs(data['z'] - value) <= tolerance
         
-        slice_data = {
-            'x': np.array(data['x'])[mask],
-            'y': np.array(data['y'])[mask],
-            'z': np.array(data['z'])[mask],
-            'T': np.array(data['T'])[mask]
-        }
-        
-        return slice_data
+        # Возвращаем DataFrame с отфильтрованными строками
+        return data[mask].copy()

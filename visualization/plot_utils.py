@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict, Any
+import pandas as pd
 
 class PlotUtils:
     @staticmethod
@@ -46,21 +47,24 @@ class PlotUtils:
         }
     
     @staticmethod
-    def validate_data(data: Dict[str, List[float]]) -> bool:
+    def validate_data(df: pd.DataFrame) -> bool:
         """Проверка корректности данных для построения графика"""
-        required_keys = ['x', 'y', 'z', 'T']
         
-        # Проверяем наличие всех необходимых ключей
-        if not all(key in data for key in required_keys):
+        # Проверяем, что передан DataFrame
+        if not isinstance(df, pd.DataFrame):
             return False
         
-        # Проверяем, что все массивы одинаковой длины
-        lengths = [len(data[key]) for key in required_keys]
-        if len(set(lengths)) != 1:
+        # Проверяем наличие всех необходимых колонок
+        required_columns = ['x', 'y', 'z', 'T']
+        if not all(col in df.columns for col in required_columns):
             return False
         
-        # Проверяем, что есть хотя бы одна точка
-        if lengths[0] == 0:
+        # Проверяем, что есть хотя бы одна строка
+        if len(df) == 0:
+            return False
+        
+        # Проверяем, что нет NaN в обязательных колонках
+        if df[required_columns].isnull().any().any():
             return False
         
         return True
@@ -72,7 +76,7 @@ class PlotUtils:
         return fig, fig.add_subplot(111, projection='3d')
     
     @staticmethod
-    def setup_plot(ax, data: Dict[str, List[float]], title: str = ""):
+    def setup_plot(ax, df: pd.DataFrame, title: str = ""):
         """Настройка осей и заголовка графика"""
         ax.set_xlabel('X Axis')
         ax.set_ylabel('Y Axis')
@@ -81,10 +85,10 @@ class PlotUtils:
         if title:
             ax.set_title(title)
         else:
-            T_min = min(data['T'])
-            T_max = max(data['T'])
+            T_min = df['T'].min()
+            T_max = df['T'].max()
             ax.set_title(f'3D Scatter Plot with Temperature Coloring\n'
-                        f'Points: {len(data["x"]):,}, T-range: [{T_min:.3f}, {T_max:.3f}]')
+                        f'Points: {len(df["x"]):,}, T-range: [{T_min:.3f}, {T_max:.3f}]')
     
     @staticmethod
     def add_colorbar(fig, scatter, label: str = 'Temperature (T)'):
