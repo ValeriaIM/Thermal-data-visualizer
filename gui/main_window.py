@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
 from data.data_loader import DataLoader
-from data.data_processor import DataProcessor
 from visualization.plot_3d import Plot3D
 from utils.file_utils import FileUtils
 import pandas as pd
@@ -12,10 +11,9 @@ class Graph3DApp:
     def __init__(self, root):
         self.root = root
         self.root.title("3D Graph Viewer")
-        self.root.geometry("700x700")
+        self.root.geometry("700x750") # ширина х высота
         
         self.data_loader = DataLoader()
-        self.data_processor = DataProcessor()
         self.plot_3d = Plot3D()
         self.file_utils = FileUtils()
         
