@@ -194,7 +194,11 @@ class Plot3D:
                 contours = ax.contour(Xi, Yi, Zi, levels=levels, colors='black', linewidths=0.5, alpha=0.7)
                 
                 # Добавляем подписи к контурным линиям
-                ax.clabel(contours, inline=True, fontsize=8, fmt='%.4f')
+                #ax.clabel(contours, inline=True, fontsize=12, fmt='%.4f')
+                labels = ax.clabel(contours, inline=True, fontsize=9, fmt='%.4f')
+                if labels:
+                    for txt in labels:
+                        txt.set_fontweight('bold')
                 
         except Exception as e:
             print(f"Ошибка при построении изотерм: {e}")
