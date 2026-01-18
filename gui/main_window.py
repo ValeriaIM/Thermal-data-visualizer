@@ -6,12 +6,13 @@ from data.data_processor import DataProcessor
 from visualization.plot_3d import Plot3D
 from utils.file_utils import FileUtils
 import pandas as pd
+import numpy as np
 
 class Graph3DApp:
     def __init__(self, root):
         self.root = root
         self.root.title("3D Graph Viewer")
-        self.root.geometry("700x650")
+        self.root.geometry("700x700")
         
         self.data_loader = DataLoader()
         self.data_processor = DataProcessor()
@@ -151,6 +152,7 @@ class Graph3DApp:
         """Обработчик изменения оси среза"""
         if self.data is not None:
             self.update_slider_range()
+            self.show_slice_info()
             if self.current_figure:
                 self.update_plot()
     
@@ -159,6 +161,7 @@ class Graph3DApp:
         try:
             value = float(self.slice_entry.get())
             self.slice_value.set(value)
+            self.show_slice_info()
             if self.data is not None and self.current_figure:
                 self.update_plot()
         except ValueError:
@@ -175,17 +178,8 @@ class Graph3DApp:
             return
             
         axis = self.slice_axis.get()
-        if axis == 'x':
-            min_val = self.data['x'].min()
-            max_val = self.data['x'].max()
-        elif axis == 'y':
-            min_val = self.data['y'].min()
-            max_val = self.data['y'].max()
-        elif axis == 'z':
-            min_val = self.data['z'].min()
-            max_val = self.data['z'].max()
-        else:
-            return
+        min_val = self.data[axis].min()
+        max_val = self.data[axis].max()
         
         self.slice_slider.config(from_=min_val, to=max_val)
         # Устанавливаем среднее значение по умолчанию
@@ -203,6 +197,7 @@ class Graph3DApp:
                 self.data = self.data_loader.load_data(file_path)
                 self.show_data_info()
                 self.update_slider_range()
+                self.show_slice_info()
                 self.status_var.set(f"Данные загружены из: {os.path.basename(file_path)}")
                 
             except Exception as e:
@@ -216,8 +211,8 @@ class Graph3DApp:
             self.info_text.insert(tk.END, "Загруженные данные:\n")
             self.info_text.insert(tk.END, "="*50 + "\n")
             
-            # Показываем первые 10 точек
-            preview_data = self.data.head(10)
+            # Показываем первые 5 точек
+            preview_data = self.data.head(5)
             self.info_text.insert(tk.END, preview_data.to_string() + "\n")
             
             # Добавляем статистику
@@ -227,7 +222,54 @@ class Graph3DApp:
             self.info_text.insert(tk.END, f"\nВсего точек: {len(self.data['x'])}\n")
             self.info_text.insert(tk.END, 
                 f"Температура: мин={T_min:.3f}, макс={T_max:.3f}, средн={T_mean:.3f}\n")
-    
+
+    def show_slice_info(self):
+        """Отображение информации о загруженных данных"""
+        if self.data is not None and not self.data.empty:
+            axis = self.slice_axis.get()
+            value = float(self.slice_value.get())
+            self.info_text.insert(tk.END, "\n" + "="*50 + "\n")
+            self.info_text.insert(tk.END, f"\nИнформация по срезу. Ось: {axis.upper()}, значение: {value:.3f}\n")
+
+
+            slice_data = self.get_slice_data(axis, value)
+
+            if slice_data is not None and len(slice_data) > 0:
+                # Статистика по точкам в срезе
+                T_min = slice_data['T'].min()
+                T_max = slice_data['T'].max()
+                T_mean = slice_data['T'].mean()
+                T_std = slice_data['T'].std()
+                
+                self.info_text.insert(tk.END, "\nСТАТИСТИКА ТЕМПЕРАТУР:\n")
+                self.info_text.insert(tk.END, f"  Всего точек в срезе: {len(slice_data)}\n")
+                self.info_text.insert(tk.END, f"  Минимальная: {T_min:.3f}\n")
+                self.info_text.insert(tk.END, f"  Максимальная: {T_max:.3f}\n")
+                self.info_text.insert(tk.END, f"  Средняя: {T_mean:.3f}\n")
+                self.info_text.insert(tk.END, f"  Стандартное отклонение: {T_std:.3f}\n")
+
+            else:
+                self.info_text.insert(tk.END, "СРЕЗ НЕ СОДЕРЖИТ ДАННЫХ\n")
+                self.info_text.insert(tk.END, "="*50 + "\n")
+                self.info_text.insert(tk.END, "\nНет точек в выбранном срезе.\n")
+                self.info_text.insert(tk.END, "Попробуйте изменить значение или ось.\n")
+            
+
+    def get_slice_data(self, axis, value, tolerance=0.1):
+        """Получение данных для среза по заданной оси и значению"""
+        if self.data is None or self.data.empty:
+            return None
+        
+        # Создаем маску для фильтрации точек в срезе
+        if axis == 'x':
+            mask = np.abs(self.data['x'] - value) <= tolerance
+        elif axis == 'y':
+            mask = np.abs(self.data['y'] - value) <= tolerance
+        else:  # axis == 'z'
+            mask = np.abs(self.data['z'] - value) <= tolerance
+        
+        return self.data[mask].copy()
+
     def plot_3d_graph(self):
         """Создание нового 3D графика со срезом"""
         if self.data is None or len(self.data['x']) == 0:
