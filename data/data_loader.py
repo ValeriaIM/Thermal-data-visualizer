@@ -110,12 +110,12 @@ class DataLoader:
             print(f"Ошибка при загрузке DAT файла: {e}")
             return pd.DataFrame(columns=['x', 'y', 'z', 'T'])
     
-    def load_data(self, file_path):
+    def load_data(self, file_path, fl_binning = False, bin_width_x=0.5, bin_width_y=0.5, bin_width_z=0.5):
         """Универсальный метод загрузки данных по расширению файла"""
         if file_path.endswith('.csv'):
             return self.load_from_csv(file_path)
         elif file_path.endswith('.dat'):
-            return self.load_from_dat(file_path)
+            return self.load_from_dat(file_path, fl_binning, bin_width_x, bin_width_y, bin_width_z)
         else:
             raise ValueError(f"Неподдерживаемый формат файла: {file_path}")
 
@@ -130,7 +130,7 @@ class DataLoader:
     def get_data_without_binning(df):
         '''
         Для прореживания точек использует 
-        округление и группировку коорединат
+        округление и группировку координат
         с взятием средней температуры
         '''
         # Округляем координаты и группируем
