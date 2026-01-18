@@ -194,8 +194,8 @@ class Graph3DApp:
     def load_data(self):
         """Загрузка данных из CSV файла"""
         file_path = filedialog.askopenfilename(
-            title="Выберите CSV файл с данными",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            title="Выберите DAT или CSV файл с данными",
+            filetypes=[("DAT files", "*.dat"), ("CSV files", "*.csv"), ("All files", "*.*")]
         )
         
         if file_path:
