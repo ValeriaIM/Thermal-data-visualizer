@@ -62,7 +62,7 @@ class DataLoader:
             print(f"Ошибка при загрузке CSV файла {file_path}: {e}")
             return pd.DataFrame(columns=['x', 'y', 'z', 'T'])
     
-    def load_from_dat(self, file_path):
+    def load_from_dat(self, file_path, fl_binning = False, bin_width_x=0.5, bin_width_y=0.5, bin_width_z=0.5):
         """Загрузка данных из DAT файла"""
         try:
             # Читаем файл построчно
@@ -83,7 +83,7 @@ class DataLoader:
             # Создаем DataFrame из отфильтрованных строк
             # Используем регулярное выражение для разделения по пробелам
             df = pd.DataFrame([line.split() for line in data_lines])
-            print(f"Есть {len(df)} записей из DAT")
+            print(f"Есть {len(df)} записей в DAT")
             
             # Обрабатываем разное количество столбцов
             if df.shape[1] >= 4:
@@ -100,25 +100,11 @@ class DataLoader:
             # Удаляем строки с NaN после преобразования
             df = df.dropna()
             
-            # Округляем координаты и группируем
-            rounded_cols = ['x_rounded', 'y_rounded', 'z_rounded']
-            for i, col in enumerate(['x', 'y', 'z']):
-                df[rounded_cols[i]] = df[col].round().astype(int)
-            
-            # Группируем по округленным координатам
-            grouped_df = df.groupby(
-                ['x_rounded', 'y_rounded', 'z_rounded'],
-                as_index=False
-            )['T'].mean()
-            
-            # Переименовываем столбцы
-            grouped_df = grouped_df.rename(columns={
-                'x_rounded': 'x',
-                'y_rounded': 'y', 
-                'z_rounded': 'z'
-            })
-            
-            return grouped_df
+            if fl_binning:
+                return get_data_with_binning(df, bin_width_x, bin_width_y, bin_width_z)
+            else:
+                return get_mean_temp_by_rounded_data(df)
+
             
         except Exception as e:
             print(f"Ошибка при загрузке DAT файла: {e}")
@@ -140,6 +126,111 @@ class DataLoader:
         
         df.to_csv(file_path, index=False, encoding='utf-8')
         print(f"Данные сохранены в {file_path}")
+
+    def get_data_without_binning(df):
+        '''
+        Для прореживания точек использует 
+        округление и группировку коорединат
+        с взятием средней температуры
+        '''
+        # Округляем координаты и группируем
+        rounded_cols = ['x_rounded', 'y_rounded', 'z_rounded']
+        for i, col in enumerate(['x', 'y', 'z']):
+            df[rounded_cols[i]] = df[col].round().astype(int)
+        
+        # Группируем по округленным координатам
+        grouped_df = df.groupby(
+            ['x_rounded', 'y_rounded', 'z_rounded'],
+            as_index=False
+        )['T'].mean()
+        
+        # Переименовываем столбцы
+        grouped_df = grouped_df.rename(columns={
+            'x_rounded': 'x',
+            'y_rounded': 'y', 
+            'z_rounded': 'z'
+        })
+        
+        return grouped_df
+
+    def get_data_with_binning(df, bin_width_x=0.5, bin_width_y=0.5, bin_width_z=0.5):
+        """
+        Для прореживания точек использует бинирование.
+
+        Параметры:
+        ----------
+        bin_width_x, bin_width_y, bin_width_z : float
+            Ширина бинов по каждой оси (по умолчанию 0,5)
+        """
+        # ВАРИАНТ 1: Биннинг с вычислением центроидов бинов
+        # Создаем бины для каждой оси
+        x_min, x_max = df['x'].min(), df['x'].max()
+        y_min, y_max = df['y'].min(), df['y'].max()
+        z_min, z_max = df['z'].min(), df['z'].max()
+
+        # Вычисляем количество бинов
+        num_bins_x = int(np.ceil((x_max - x_min) / bin_width_x)) + 1
+        num_bins_y = int(np.ceil((y_max - y_min) / bin_width_y)) + 1
+        num_bins_z = int(np.ceil((z_max - z_min) / bin_width_z)) + 1
+
+        print(f"Количество бинов: X={num_bins_x}, Y={num_bins_y}, Z={num_bins_z}")
+
+        # Присваиваем каждой точке номер бина
+        df['x_bin'] = ((df['x'] - x_min) // bin_width_x).astype(int)
+        df['y_bin'] = ((df['y'] - y_min) // bin_width_y).astype(int)
+        df['z_bin'] = ((df['z'] - z_min) // bin_width_z).astype(int)
+
+        # Группируем по бинам и вычисляем средние значения
+        grouped_df = df.groupby(['x_bin', 'y_bin', 'z_bin']).agg({
+            'T': 'mean',
+            'x': 'mean',  # Можно также использовать 'first', 'min', 'max' или вычислять центроид
+            'y': 'mean',
+            'z': 'mean'
+        }).reset_index()
+
+        # Переименовываем столбцы
+        grouped_df = grouped_df.rename(columns={
+            'x': 'x_centroid',
+            'y': 'y_centroid',
+            'z': 'z_centroid'
+        })
+
+        # ВАРИАНТ 2: Альтернативный подход - вычисление центров бинов
+        # Этот вариант создает равномерную сетку с центрами бинов
+        # def calculate_bin_centers(df, coord_col, min_val, bin_width):
+        #     """Вычисляет центры бинов на основе номеров бинов"""
+        #     return min_val + (df[f'{coord_col}_bin'] + 0.5) * bin_width
+        #
+        # # Добавляем центры бинов
+        # grouped_df['x_center'] = calculate_bin_centers(grouped_df, 'x', x_min, bin_width_x)
+        # grouped_df['y_center'] = calculate_bin_centers(grouped_df, 'y', y_min, bin_width_y)
+        # grouped_df['z_center'] = calculate_bin_centers(grouped_df, 'z', z_min, bin_width_z)
+
+        # Выбираем нужные столбцы для сохранения
+        # Можно выбрать либо центроиды (реальные средние координаты), либо центры бинов (равномерная сетка)
+        # Поменять *_x_centroid -> *_center и раскомитеть сверху
+        result_df = grouped_df[['x_centroid', 'y_centroid', 'z_centroid', 'T']].copy()
+        result_df = result_df.rename(columns={
+            'x_centroid': 'x',
+            'y_centroid': 'y',
+            'z_centroid': 'z'
+        })
+
+        # Альтернатива: использовать центры бинов вместо центроидов
+        # result_df = grouped_df[['x_center', 'y_center', 'z_center', 'T']].copy()
+        # result_df = result_df.rename(columns={'x_center': 'x', 'y_center': 'y', 'z_center': 'z'})
+
+        print(f"Количество точек после бининга: {len(result_df)}")
+        print(f"Степень сжатия: {len(df) / len(result_df):.1f}:1")
+
+        # Дополнительная статистика
+        print(f"\nСтатистика бининга:")
+        print(f"Диапазон X: [{x_min:.2f}, {x_max:.2f}], ширина бина: {bin_width_x}")
+        print(f"Диапазон Y: [{y_min:.2f}, {y_max:.2f}], ширина бина: {bin_width_y}")
+        print(f"Диапазон Z: [{z_min:.2f}, {z_max:.2f}], ширина бина: {bin_width_z}")
+
+        return result_df
+    
 
 # Пример использования
 if __name__ == "__main__":
