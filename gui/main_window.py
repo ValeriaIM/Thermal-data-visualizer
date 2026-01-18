@@ -11,18 +11,25 @@ class Graph3DApp:
     def __init__(self, root):
         self.root = root
         self.root.title("3D Graph Viewer")
-        self.root.geometry("700x750") # ширина х высота
+        self.root.geometry("700x850") # ширина х высота
         
         self.data_loader = DataLoader()
         self.plot_3d = Plot3D()
         self.file_utils = FileUtils()
         
+        self.file_path = None
         self.data = None
         self.slice_value = tk.DoubleVar(value=0.0)
         self.slice_axis = tk.StringVar(value="z")
         self.show_isotherms = tk.BooleanVar(value=True)
         self.num_isotherms = tk.IntVar(value=10)
         self.current_figure = None
+
+        self.thinning_method = tk.StringVar(value="rounding") # "binning", "rounding"
+        self.bin_width_x = tk.DoubleVar(value=0.5)
+        self.bin_width_y = tk.DoubleVar(value=0.5)
+        self.bin_width_z = tk.DoubleVar(value=0.5)
+        self.round_precision = tk.IntVar(value=0) # 0 - целые, 1 - один знак и т.д.
         
         self.create_widgets()
         
@@ -59,7 +66,52 @@ class Graph3DApp:
                                     command=self.create_example_file,
                                     bg="lightyellow", font=("Arial", 12))
         self.example_btn.pack(side=tk.LEFT, padx=5)
+
+        # Фрейм для выбора метода прореживания
+        thinning_frame = tk.LabelFrame(self.root, text="Прореживание точек", 
+                                      font=("Arial", 10))
+        thinning_frame.pack(pady=5, padx=20, fill=tk.X)
+
+        # Радиокнопки для выбора метода
+        method_frame = tk.Frame(thinning_frame)
+        method_frame.pack(fill=tk.X, pady=5)
         
+        tk.Label(method_frame, text="Метод:", font=("Arial", 9)).pack(side=tk.LEFT)
+        
+        tk.Radiobutton(method_frame, text="Биннинг", 
+                      variable=self.thinning_method, value="binning",
+                      command=self.on_thinning_method_change).pack(side=tk.LEFT, padx=10)
+        
+        tk.Radiobutton(method_frame, text="Округление", 
+                      variable=self.thinning_method, value="rounding",
+                      command=self.on_thinning_method_change).pack(side=tk.LEFT, padx=10)
+        
+        # Фрейм для настроек биннинга
+        self.binning_frame = tk.Frame(thinning_frame)
+        self.binning_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Label(self.binning_frame, text="Ширина бинов:", font=("Arial", 9)).pack(side=tk.LEFT)
+        
+        tk.Label(self.binning_frame, text="X:", font=("Arial", 9)).pack(side=tk.LEFT, padx=(10, 2))
+        self.bin_x_entry = tk.Entry(self.binning_frame, textvariable=self.bin_width_x, 
+                                   width=6, font=("Arial", 9))
+        self.bin_x_entry.pack(side=tk.LEFT, padx=2)
+        self.bin_x_entry.bind('<Return>', self.on_thinning_method_change)
+        
+        tk.Label(self.binning_frame, text="Y:", font=("Arial", 9)).pack(side=tk.LEFT, padx=(10, 2))
+        self.bin_y_entry = tk.Entry(self.binning_frame, textvariable=self.bin_width_y, 
+                                   width=6, font=("Arial", 9))
+        self.bin_y_entry.pack(side=tk.LEFT, padx=2)
+        self.bin_y_entry.bind('<Return>', self.on_thinning_method_change)
+        
+        tk.Label(self.binning_frame, text="Z:", font=("Arial", 9)).pack(side=tk.LEFT, padx=(10, 2))
+        self.bin_z_entry = tk.Entry(self.binning_frame, textvariable=self.bin_width_z, 
+                                   width=6, font=("Arial", 9))
+        self.bin_z_entry.pack(side=tk.LEFT, padx=2)
+        self.bin_z_entry.bind('<Return>', self.on_thinning_method_change)
+        
+        self.binning_frame.pack_forget()
+
         # Фрейм для управления срезом
         slice_frame = tk.LabelFrame(self.root, text="Управление срезом", font=("Arial", 10))
         slice_frame.pack(pady=10, padx=20, fill=tk.X)
@@ -128,6 +180,28 @@ class Graph3DApp:
                              relief=tk.SUNKEN, anchor=tk.W)
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
+    def on_thinning_method_change(self, event=None):
+        """Обработчик изменения метода прореживания"""
+        self.status_var.set(f"Данные обновляются...")
+        method = self.thinning_method.get()
+        
+        # Скрываем все фреймы настроек
+        self.binning_frame.pack_forget()
+        
+        # Показываем нужный фрейм
+        if method == "binning":
+            self.binning_frame.pack(fill=tk.X, pady=5)
+        
+        # Обновляем статус
+        method_names = {
+            "binning": "биннинг",
+            "rounding": "округление"
+        }
+        self.status_var.set(f"Метод прореживания: {method_names[method]}")
+        self.update_data()
+        if self.current_figure:
+            self.update_plot()
+
     def on_isotherm_settings_change(self):
         """Обработчик изменения настроек изотерм"""
         if self.data is not None and self.current_figure:
@@ -185,22 +259,39 @@ class Graph3DApp:
     
     def load_data(self):
         """Загрузка данных из CSV файла"""
-        file_path = filedialog.askopenfilename(
+        self.file_path = filedialog.askopenfilename(
             title="Выберите DAT или CSV файл с данными",
             filetypes=[("DAT files", "*.dat"), ("CSV files", "*.csv"), ("All files", "*.*")]
         )
+
+        self.update_data()
         
-        if file_path:
+    def update_data(self):
+        if self.file_path:
             try:
-                self.data = self.data_loader.load_data(file_path)
+                # Получаем выбранный метод прореживания
+                method = self.thinning_method.get()
+                if method == "binning":
+                    self.data = self.data_loader.load_data(
+                        self.file_path, 
+                        fl_binning=True,
+                        bin_width_x=self.bin_width_x.get(),
+                        bin_width_y=self.bin_width_y.get(),
+                        bin_width_z=self.bin_width_z.get()
+                    )
+                else:
+                    self.data = self.data_loader.load_data(self.file_path)
                 self.show_data_info()
                 self.update_slider_range()
                 self.show_slice_info()
-                self.status_var.set(f"Данные загружены из: {os.path.basename(file_path)}")
+                self.status_var.set(f"Данные загружены из: {os.path.basename(self.file_path)}")
                 
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось загрузить данные: {str(e)}")
                 self.status_var.set("Ошибка загрузки данных")
+        else:
+            self.load_data()
+
     
     def show_data_info(self):
         """Отображение информации о загруженных данных"""

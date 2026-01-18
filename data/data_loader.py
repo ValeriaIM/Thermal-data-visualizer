@@ -101,9 +101,9 @@ class DataLoader:
             df = df.dropna()
             
             if fl_binning:
-                return get_data_with_binning(df, bin_width_x, bin_width_y, bin_width_z)
+                return self.get_data_with_binning(df, bin_width_x, bin_width_y, bin_width_z)
             else:
-                return get_mean_temp_by_rounded_data(df)
+                return self.get_data_without_binning(df)
 
             
         except Exception as e:
@@ -127,7 +127,7 @@ class DataLoader:
         df.to_csv(file_path, index=False, encoding='utf-8')
         print(f"Данные сохранены в {file_path}")
 
-    def get_data_without_binning(df):
+    def get_data_without_binning(self, df):
         '''
         Для прореживания точек использует 
         округление и группировку координат
@@ -153,7 +153,7 @@ class DataLoader:
         
         return grouped_df
 
-    def get_data_with_binning(df, bin_width_x=0.5, bin_width_y=0.5, bin_width_z=0.5):
+    def get_data_with_binning(self, df, bin_width_x=0.5, bin_width_y=0.5, bin_width_z=0.5):
         """
         Для прореживания точек использует бинирование.
 
