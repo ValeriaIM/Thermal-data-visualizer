@@ -337,8 +337,9 @@ class Graph3DApp:
         if self.data is not None and not self.data.empty:
             axis = self.slice_axis.get()
             value = float(self.slice_value.get())
+            tolerance = float(self.tolerance_value.get())
             self.info_text.insert(tk.END, "\n" + "="*50 + "\n")
-            self.info_text.insert(tk.END, f"Информация по срезу. Ось: {axis.upper()}, значение: {value:.3f}\n")
+            self.info_text.insert(tk.END, f"Информация по срезу. Ось: {axis.upper()}, значение среза: {value:.3f}, значение погрешности: {tolerance:.3f}\n")
 
 
             slice_data = self.get_slice_data(axis, value)
